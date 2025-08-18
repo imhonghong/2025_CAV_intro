@@ -9,7 +9,7 @@ module TOP #(
     input  logic                write_en,     // write request
     input  logic                read_en,      // read request
     input  logic [WIDTH-1:0]    write_data,
-    output logic [WIDTH-1:0]    read_data,
+    output logic [WIDTH-1:0]    read_data,    // FWFT：組合輸出
     output logic                empty,
     output logic                full
 );
@@ -19,73 +19,59 @@ module TOP #(
 
     // state
     logic [AW-1:0]  wr_ptr, rd_ptr, wr_ptr_n, rd_ptr_n;
-    logic [AW:0]    count, count_n;
-    // logic           empty, full;
+    logic [AW:0]    count,  count_n;
     logic           do_write, do_read;
 
-    // next-state for read_data
-    logic [WIDTH-1:0] read_data_n;
+    // 狀態旗標（以當拍 count 計）
+    assign empty = (count == 0);
+    assign full  = (count == DEPTH);
 
-    // 用來告知 seq 區塊是否真的要寫 mem
-    logic wr_do;
+    // 允許條件（gating）
+    // 滿格但同拍有讀 → 可寫（釋出一格）
+    assign do_write = write_en && (count != DEPTH || read_en);
+    // 空但同拍有寫 → 可讀（FWFT 直通）
+    assign do_read  = read_en  && (count != 0     || write_en);
 
-    // status logic
-    assign empty    = (count == 0);
-    assign full     = (count == DEPTH);
-    assign do_write = write_en && (!full  || read_en);
-    assign do_read  = read_en  && (!empty || write_en);
+    // ★ FWFT 組合輸出：空+同拍RW直通 write_data，其餘讀 mem[rd_ptr]
+    assign read_data = (empty && read_en && write_en) ? write_data
+                                                      : mem[rd_ptr];
 
-    // next state logic（先讀後寫）
+    // 下一拍狀態（一定要先給預設值，再依 do_* 覆蓋）
     always_comb begin
-        // default
-        wr_ptr_n    = wr_ptr;
-        rd_ptr_n    = rd_ptr;
-        count_n     = count;
-        read_data_n = read_data;
-        wr_do       = 1'b0;    // 預設不寫入記憶體
+        // 預設保持
+        wr_ptr_n = wr_ptr;
+        rd_ptr_n = rd_ptr;
 
-        // 讀
-        if (do_read) begin
-            if (empty && write_en) begin
-                // bypass：空+同拍RW → 當拍輸出 write_data，不動指標/計數
-                read_data_n = write_data;
-            end else begin
-                read_data_n = mem[rd_ptr];
-                rd_ptr_n    = (rd_ptr == DEPTH-1) ? '0 : rd_ptr + 1;
-                count_n     = count_n - 1;   // 注意用 count_n 累加/累減
-            end
-        end
+        // 單一公式計數（避免用未定義的 count_n 做運算）
+        count_n  = count + (do_write ? 1 : 0) - (do_read ? 1 : 0);
 
-        // 寫（滿+同拍RW允許；空+同拍RW已在上面bypass，因此此處要略過）
-        if (do_write) begin
-            if (!(empty && read_en)) begin
-                wr_do    = 1'b1;                                   // 交給 seq 區塊寫 mem
-                wr_ptr_n = (wr_ptr == DEPTH-1) ? '0 : wr_ptr + 1;  // 下一拍指標前進
-                count_n  = count_n + 1;                             // 用 count_n
-            end
-        end
+        // 指標前進
+        if (do_write)
+            wr_ptr_n = (wr_ptr == DEPTH-1) ? '0 : wr_ptr + 1;
+
+        if (do_read)
+            rd_ptr_n = (rd_ptr == DEPTH-1) ? '0 : rd_ptr + 1;
     end
 
-    // sequential（同步寫入 mem，同步更新指標/計數/輸出）
+    // 時序更新：寫入記憶體 + 狀態暫存
     always_ff @(posedge clk or negedge rstN) begin
         if (!rstN) begin
-            wr_ptr     <= '0;
-            rd_ptr     <= '0;
-            count      <= '0;
-            read_data  <= '0;
+            wr_ptr <= '0;
+            rd_ptr <= '0;
+            count  <= '0;
+            // full/empty 是組合線，在這裡不用另外清
         end else begin
-            if (wr_do) begin
-                // 標準 FIFO 寫法：用「當拍的 wr_ptr」地址寫入
+            if (do_write) begin
+                // 建議使用「當拍 wr_ptr」地址寫入（read-before-write 推理清楚）
                 mem[wr_ptr] <= write_data;
-                // 如果你希望波形上「寫入位置」和 wr_ptr 更新更直觀，也可改成：
-                // mem[wr_ptr_n] <= write_data;
             end
 
-            wr_ptr     <= wr_ptr_n;
-            rd_ptr     <= rd_ptr_n;
-            count      <= count_n;
-            read_data  <= read_data_n;
+            wr_ptr <= wr_ptr_n;
+            rd_ptr <= rd_ptr_n;
+            count  <= count_n;
         end
     end
 
 endmodule
+
+// FO (IPF144): 0: Initiating shutdown of proof [125.46 s]
