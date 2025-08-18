@@ -1,1 +1,17 @@
+FIFO
+    |___ src
+        |___ fifo16x8.sv
+        |___ tb_fifo16x8.sv
+    |___ prop
+        |___ jasper_sb_3.sv
+    |___ script
+        |___ jasper_sb_3_bug.tcl
 
+spec:
+    depth = 8, width = 16
+    can read/write at the same time, including full/empty case
+    fulfill data integrity
+
+
+`run.sh` can run for simulation, using vcs+nWave
+jasper gold is for verification.
