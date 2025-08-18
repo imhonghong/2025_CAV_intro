@@ -1,11 +1,13 @@
 FIFO
-    |___ src
-        |___ fifo16x8.sv
-        |___ tb_fifo16x8.sv
-    |___ prop
-        |___ jasper_sb_3.sv
-    |___ script
-        |___ jasper_sb_3_bug.tcl
+    |__ src
+        |__ fifo16x8.sv
+        |__ tb_fifo16x8.sv
+
+    |__ prop
+        |__ jasper_sb_3.sv
+    
+    |__ script
+        |__ jasper_sb_3_bug.tcl
 
 spec:
     depth = 8, width = 16
