@@ -13,16 +13,16 @@ module SB3(
     .OUT_CHUNKS(1),
     .SINGLE_CLOCK(1),
     .ORDERING(`JS3_IN_ORDER),
-    .MAX_PENDING(8)     // 你 FIFO 深度 8，這樣剛好
+    .MAX_PENDING(8)
   ) sb (
     .rstN          (rstN),
-    // .incoming_clk  (clk),
-    // .outgoing_clk  (clk),
+    .incoming_clk  (clk),
+    .outgoing_clk  (clk),
     .clk (clk),
-    .incoming_vld  (input_vld),  // 用「被接受的寫」
-    .incoming_data (din),  // 用本模組的 din
-    .outgoing_vld  (output_vld), // 用「被接受的讀」
-    .outgoing_data (dout)  // 用本模組的 dout
+    .incoming_vld  (input_vld),
+    .incoming_data (din),
+    .outgoing_vld  (output_vld),
+    .outgoing_data (dout)
   );
 
 endmodule
